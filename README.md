@@ -6,7 +6,8 @@
 - 아래는 예시 파서, 다양하게 돌려서 성능을 높여보자
 
 ```
+--fairness_type [EO, DP] 중에 택.
 
-python main.py custom custom_mlp ../log/DeepSAD/AKI_test ../data/ --ratio_known_normal 0.6  --ratio_known_outlier 0.4 --ratio_pollution 0.0 --lr 0.001 --n_epochs 100 --lr_milestone 50 --batch_size 128 --weight_decay 0.5e-6 --pretrain True --ae_lr 0.001 --ae_n_epochs 100 --ae_batch_size 128 --ae_weight_decay 0.5e-3 --normal_class 0  --known_outlier_class 1 --n_known_outlier_classes 1 --seed 0 
+python main.py custom custom_mlp ../log/DeepSAD/AKI_test ../data/ --fairness_type EO  --ratio_known_normal 0.6  --ratio_known_outlier 0.4 --ratio_pollution 0.0 --lr 0.001 --n_epochs 10 --lr_milestone 50 --batch_size 128 --weight_decay 0.5e-6 --pretrain True --ae_lr 0.001 --ae_n_epochs 10 --ae_batch_size 128 --ae_weight_decay 0.5e-3 --normal_class 0  --known_outlier_class 1 --n_known_outlier_classes 1 --seed 0 
 
 ```
