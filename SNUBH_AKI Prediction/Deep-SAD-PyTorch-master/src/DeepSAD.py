@@ -24,10 +24,11 @@ class DeepSAD(object):
         ae_results: A dictionary to save the autoencoder results.
     """
 
-    def __init__(self, eta: float = 1.0):
+    def __init__(self, eta: float = 1.0, fairness_type: str = 'EO'):
         """Inits DeepSAD with hyperparameter eta."""
 
         self.eta = eta
+        self.fairness_type = fairness_type
         self.c = None  # hypersphere center c
 
         self.net_name = None
@@ -66,7 +67,9 @@ class DeepSAD(object):
         self.optimizer_name = optimizer_name
         self.trainer = DeepSADTrainer(self.c, self.eta, optimizer_name=optimizer_name, lr=lr, n_epochs=n_epochs,
                                       lr_milestones=lr_milestones, batch_size=batch_size, weight_decay=weight_decay,
-                                      device=device, n_jobs_dataloader=n_jobs_dataloader)
+                                      device=device, n_jobs_dataloader=n_jobs_dataloader,
+                                      alpha=1.0,  # 공정성 손실의 가중치
+                                      fairness_type=self.fairness_type)  # 공정성 손실 유형 전달
         # Get the model
         self.net = self.trainer.train(dataset, self.net)
         self.results['train_time'] = self.trainer.train_time
@@ -76,7 +79,11 @@ class DeepSAD(object):
         """Tests the Deep SAD model on the test data."""
 
         if self.trainer is None:
-            self.trainer = DeepSADTrainer(self.c, self.eta, device=device, n_jobs_dataloader=n_jobs_dataloader)
+            self.trainer = DeepSADTrainer(self.c, self.eta, 
+                                          alpha=1.0,
+                                          fairness_type=self.fairness_type,
+                                          device=device, 
+                                          n_jobs_dataloader=n_jobs_dataloader)
 
         self.trainer.test(dataset, self.net)
 
@@ -85,7 +92,7 @@ class DeepSAD(object):
         self.results['test_time'] = self.trainer.test_time
         self.results['test_scores'] = self.trainer.test_scores
 
-    def pretrain(self, dataset: BaseADDataset, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
+    def pretrain(self, pretrain_dataset, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 100,
                  lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
                  n_jobs_dataloader: int = 0):
         """Pretrains the weights for the Deep SAD network phi via autoencoder."""
@@ -98,13 +105,13 @@ class DeepSAD(object):
         self.ae_trainer = AETrainer(optimizer_name, lr=lr, n_epochs=n_epochs, lr_milestones=lr_milestones,
                                     batch_size=batch_size, weight_decay=weight_decay, device=device,
                                     n_jobs_dataloader=n_jobs_dataloader)
-        self.ae_net = self.ae_trainer.train(dataset, self.ae_net)
+        self.ae_net = self.ae_trainer.train(pretrain_dataset, self.ae_net)
 
         # Get train results
         self.ae_results['train_time'] = self.ae_trainer.train_time
 
         # Test
-        self.ae_trainer.test(dataset, self.ae_net)
+        self.ae_trainer.test(pretrain_dataset, self.ae_net)
 
         # Get test results
         self.ae_results['test_auc'] = self.ae_trainer.test_auc

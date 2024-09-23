@@ -25,10 +25,12 @@ class AETrainer(BaseTrainer):
 
     def train(self, dataset: BaseADDataset, ae_net: BaseNet):
         logger = logging.getLogger()
-
-        # Get train data loader
-        train_loader, _ = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
-
+        
+        # 데이터셋이 BaseADDataset인지 여부에 따라 데이터 로더 생성 방식 결정
+        if isinstance(dataset, BaseADDataset):
+            train_loader, _ = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
+        else:
+            train_loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.n_jobs_dataloader)
         # Set loss
         criterion = nn.MSELoss(reduction='none')
 
@@ -57,7 +59,13 @@ class AETrainer(BaseTrainer):
             epoch_start_time = time.time()
             
             for data in train_loader:
-                inputs, _, _, _ = data
+                if len(data) == 4:
+                    inputs, _, _, _ = data
+                elif len(data) == 5:
+                    inputs, _, _, _, _ = data 
+                else:
+                    raise ValueError("Unexpected number of elements in data tuple")
+                
                 inputs = inputs.to(self.device)
 
                 # Zero the network parameter gradients
@@ -86,9 +94,15 @@ class AETrainer(BaseTrainer):
 
     def test(self, dataset: BaseADDataset, ae_net: BaseNet):
         logger = logging.getLogger()
+        
+        # 데이터셋이 BaseADDataset인지 여부에 따라 데이터 로더 생성 방식 결정
+        if isinstance(dataset, BaseADDataset):
+            _, test_loader = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
+        else:
+            test_loader = torch.utils.data.DataLoader(dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.n_jobs_dataloader)        
 
         # Get test data loader
-        _, test_loader = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
+        # _, test_loader = dataset.loaders(batch_size=self.batch_size, num_workers=self.n_jobs_dataloader)
 
         # Set loss
         criterion = nn.MSELoss(reduction='none')
@@ -106,8 +120,11 @@ class AETrainer(BaseTrainer):
         ae_net.eval()
         with torch.no_grad():
             for data in test_loader:
+                if len(data) == 4:
+                    inputs, labels, _, idx = data  # 민감한 속성 없음
+                else:
+                    inputs, labels, _, idx, _ = data  # 민감한 속성이 있을 경우 대비
 
-                inputs, labels, _, idx = data
                 inputs, labels, idx = inputs.to(self.device), labels.to(self.device), idx.to(self.device)
 
                 rec = ae_net(inputs)

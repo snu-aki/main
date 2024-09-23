@@ -21,6 +21,8 @@ from datasets.main import load_dataset
                                                'thyroid_mlp','custom_mlp']))
 @click.argument('xp_path', type=click.Path(exists=True))
 @click.argument('data_path', type=click.Path(exists=True))
+@click.option('--fairness_type', type=click.Choice(['EO', 'DP']), default='EO',
+              help='Type of fairness loss to use: "EO" for Equalized Odds or "DP" for Demographic Parity.')
 @click.option('--load_config', type=click.Path(exists=True), default=None,
               help='Config JSON-file path (default: None).')
 @click.option('--load_model', type=click.Path(exists=True), default=None,
@@ -69,7 +71,7 @@ from datasets.main import load_dataset
                    'If 0, no anomalies are known.'
                    'If 1, outlier class as specified in --known_outlier_class option.'
                    'If > 1, the specified number of outlier classes will be sampled at random.')
-def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, eta,
+def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config, load_model, eta,
          ratio_known_normal, ratio_known_outlier, ratio_pollution, device, seed,
          optimizer_name, lr, n_epochs, lr_milestone, batch_size, weight_decay,
          pretrain, ae_optimizer_name, ae_lr, ae_n_epochs, ae_lr_milestone, ae_batch_size, ae_weight_decay,
@@ -150,7 +152,7 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, et
         logger.info('Known anomaly classes: %s' % (dataset.known_outlier_classes,))
 
     # Initialize DeepSAD model and set neural network phi
-    deepSAD = DeepSAD(cfg.settings['eta'])
+    deepSAD = DeepSAD(cfg.settings['eta'], fairness_type=fairness_type)
     deepSAD.set_network(net_name)
 
     # If specified, load Deep SAD model (center c, network weights, and possibly autoencoder weights)
@@ -168,8 +170,8 @@ def main(dataset_name, net_name, xp_path, data_path, load_config, load_model, et
         logger.info('Pretraining batch size: %d' % cfg.settings['ae_batch_size'])
         logger.info('Pretraining weight decay: %g' % cfg.settings['ae_weight_decay'])
 
-        # Pretrain model on dataset (via autoencoder)
-        deepSAD.pretrain(dataset,
+        # Pretrain model on dataset (via autoen.pretrain_datasetcoder)
+        deepSAD.pretrain(dataset.pretrain_dataset,
                          optimizer_name=cfg.settings['ae_optimizer_name'],
                          lr=cfg.settings['ae_lr'],
                          n_epochs=cfg.settings['ae_n_epochs'],

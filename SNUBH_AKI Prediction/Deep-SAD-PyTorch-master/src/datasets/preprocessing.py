@@ -2,11 +2,12 @@ import torch
 import numpy as np
 
 
-def create_semisupervised_setting(labels, normal_classes, outlier_classes, known_outlier_classes,
+def create_semisupervised_setting(labels, sensitive_attr, normal_classes, outlier_classes, known_outlier_classes,
                                   ratio_known_normal, ratio_known_outlier, ratio_pollution):
     """
     Create a semi-supervised data setting. 
     :param labels: np.array with labels of all dataset samples
+    :param sensitive_attr: np.array with sensitive attribute values (e.g., 'gender')
     :param normal_classes: tuple with normal class labels
     :param outlier_classes: tuple with anomaly class labels
     :param known_outlier_classes: tuple with known (labeled) anomaly class labels
@@ -60,6 +61,9 @@ def create_semisupervised_setting(labels, normal_classes, outlier_classes, known
     semi_labels_unlabeled_normal = np.zeros(n_unlabeled_normal).astype(np.int32).tolist()
     semi_labels_unlabeled_outlier = np.zeros(n_unlabeled_outlier).astype(np.int32).tolist()
     semi_labels_known_outlier = (-np.ones(n_known_outlier).astype(np.int32)).tolist()
+    
+    # Get sensitive attributes for the selected indices
+    sensitive_attr_list = sensitive_attr[idx_known_normal + idx_unlabeled_normal + idx_unlabeled_outlier + idx_known_outlier].tolist()
 
     # Create final lists
     list_idx = idx_known_normal + idx_unlabeled_normal + idx_unlabeled_outlier + idx_known_outlier
@@ -67,4 +71,4 @@ def create_semisupervised_setting(labels, normal_classes, outlier_classes, known
     list_semi_labels = (semi_labels_known_normal + semi_labels_unlabeled_normal + semi_labels_unlabeled_outlier
                         + semi_labels_known_outlier)
 
-    return list_idx, list_labels, list_semi_labels
+    return list_idx, list_labels, list_semi_labels, sensitive_attr_list
