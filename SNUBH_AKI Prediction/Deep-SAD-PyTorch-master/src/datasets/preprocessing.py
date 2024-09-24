@@ -3,9 +3,10 @@ import numpy as np
 
 
 def create_semisupervised_setting(labels, sensitive_attr, normal_classes, outlier_classes, known_outlier_classes,
-                                  ratio_known_normal, ratio_known_outlier, ratio_pollution):
+                                  ratio_known_normal, ratio_known_outlier, ratio_pollution, random_state):
     """
-    Create a semi-supervised data setting. 
+    Create a semi-supervised data setting.
+
     :param labels: np.array with labels of all dataset samples
     :param sensitive_attr: np.array with sensitive attribute values (e.g., 'gender')
     :param normal_classes: tuple with normal class labels
@@ -14,61 +15,82 @@ def create_semisupervised_setting(labels, sensitive_attr, normal_classes, outlie
     :param ratio_known_normal: the desired ratio of known (labeled) normal samples
     :param ratio_known_outlier: the desired ratio of known (labeled) anomalous samples
     :param ratio_pollution: the desired pollution ratio of the unlabeled data with unknown (unlabeled) anomalies.
-    :return: tuple with list of sample indices, list of original labels, and list of semi-supervised labels
+    :param random_state: seed for reproducibility
+    :return: tuple with list of sample indices, list of original labels, list of semi-supervised labels, list of sensitive attributes
     """
-    idx_normal = np.argwhere(np.isin(labels, normal_classes)).flatten()
-    idx_outlier = np.argwhere(np.isin(labels, outlier_classes)).flatten()
-    idx_known_outlier_candidates = np.argwhere(np.isin(labels, known_outlier_classes)).flatten()
+    # random_state가 None이 아니면 정수로 변환 시도
+    if random_state is not None:
+        if isinstance(random_state, int):
+            np.random.seed(random_state)
+        else:
+            try:
+                random_state = int(random_state)
+                np.random.seed(random_state)
+            except ValueError:
+                raise ValueError("random_state는 정수형 또는 None이어야 합니다.")
+
+    # Indices for each class
+    idx_normal = np.where(np.isin(labels, normal_classes))[0]
+    idx_outlier = np.where(np.isin(labels, outlier_classes))[0]
+    idx_known_outlier_candidates = np.where(np.isin(labels, known_outlier_classes))[0]
 
     n_normal = len(idx_normal)
+    n_outlier = len(idx_outlier)
+    n_known_outlier_candidates = len(idx_known_outlier_candidates)
 
-    # Solve system of linear equations to obtain respective number of samples
-    a = np.array([[1, 1, 0, 0],
-                  [(1-ratio_known_normal), -ratio_known_normal, -ratio_known_normal, -ratio_known_normal],
-                  [-ratio_known_outlier, -ratio_known_outlier, -ratio_known_outlier, (1-ratio_known_outlier)],
-                  [0, -ratio_pollution, (1-ratio_pollution), 0]])
-    b = np.array([n_normal, 0, 0, 0])
-    x = np.linalg.solve(a, b)
+    # Calculate number of known and unlabeled samples
+    n_known_normal = int(n_normal * ratio_known_normal)
+    n_unlabeled_normal = n_normal - n_known_normal
 
-    # Get number of samples
-    n_known_normal = int(x[0])
-    n_unlabeled_normal = int(x[1])
-    n_unlabeled_outlier = int(x[2])
-    n_known_outlier = int(x[3])
+    n_known_outlier = int(n_known_outlier_candidates * ratio_known_outlier)
+    n_unlabeled_outlier = n_outlier - n_known_outlier
 
-    # Sample indices
-    perm_normal = np.random.permutation(n_normal)
-    perm_outlier = np.random.permutation(len(idx_outlier))
-    perm_known_outlier = np.random.permutation(len(idx_known_outlier_candidates))
+    # Sample known and unlabeled normals
+    perm_normal = np.random.permutation(idx_normal)
+    idx_known_normal = perm_normal[:n_known_normal]
+    idx_unlabeled_normal = perm_normal[n_known_normal:]
 
-    idx_known_normal = idx_normal[perm_normal[:n_known_normal]].tolist()
-    idx_unlabeled_normal = idx_normal[perm_normal[n_known_normal:n_known_normal+n_unlabeled_normal]].tolist()
-    idx_unlabeled_outlier = idx_outlier[perm_outlier[:n_unlabeled_outlier]].tolist()
-    idx_known_outlier = idx_known_outlier_candidates[perm_known_outlier[:n_known_outlier]].tolist()
+    # Sample known and unlabeled outliers
+    if n_known_outlier > 0:
+        perm_known_outlier = np.random.permutation(idx_known_outlier_candidates)
+        idx_known_outlier = perm_known_outlier[:n_known_outlier]
+    else:
+        idx_known_outlier = np.array([], dtype=int)
 
-    # Get original class labels
-    labels_known_normal = labels[idx_known_normal].tolist()
-    labels_unlabeled_normal = labels[idx_unlabeled_normal].tolist()
-    labels_unlabeled_outlier = labels[idx_unlabeled_outlier].tolist()
-    labels_known_outlier = labels[idx_known_outlier].tolist()
+    if n_unlabeled_outlier > 0:
+        # Exclude known outliers from outlier indices
+        idx_unlabeled_outlier = np.setdiff1d(idx_outlier, idx_known_outlier, assume_unique=True)
+    else:
+        idx_unlabeled_outlier = np.array([], dtype=int)
 
-    # Get semi-supervised setting labels
-    semi_labels_known_normal = np.ones(n_known_normal).astype(np.int32).tolist()
-    
-    # Ensure n_unlabeled_normal is non-negative
-    # n_unlabeled_normal = max(0, n_unlabeled_normal)
-    
-    semi_labels_unlabeled_normal = np.zeros(n_unlabeled_normal).astype(np.int32).tolist()
-    semi_labels_unlabeled_outlier = np.zeros(n_unlabeled_outlier).astype(np.int32).tolist()
-    semi_labels_known_outlier = (-np.ones(n_known_outlier).astype(np.int32)).tolist()
-    
-    # Get sensitive attributes for the selected indices
-    sensitive_attr_list = sensitive_attr[idx_known_normal + idx_unlabeled_normal + idx_unlabeled_outlier + idx_known_outlier].tolist()
+    # Assign semi_labels
+    # Convention:
+    # 0: known normal
+    # 1: known outlier
+    # -1: unlabeled normal or outlier
+    semi_labels = np.full(n_normal + n_outlier, -1, dtype=np.int32)
 
-    # Create final lists
-    list_idx = idx_known_normal + idx_unlabeled_normal + idx_unlabeled_outlier + idx_known_outlier
-    list_labels = labels_known_normal + labels_unlabeled_normal + labels_unlabeled_outlier + labels_known_outlier
-    list_semi_labels = (semi_labels_known_normal + semi_labels_unlabeled_normal + semi_labels_unlabeled_outlier
-                        + semi_labels_known_outlier)
+    # Assign known normals
+    semi_labels[:n_known_normal] = 0
 
-    return list_idx, list_labels, list_semi_labels, sensitive_attr_list
+    # Assign known outliers
+    if n_known_outlier > 0:
+        semi_labels[-n_known_outlier:] = 1
+
+    # Apply pollution: flip some semi_labels in the unlabeled outlier data
+    # Assuming pollution here means mislabeling some unlabeled outliers as known outliers
+    if ratio_pollution > 0.0 and n_unlabeled_outlier > 0:
+        n_polluted = int(n_unlabeled_outlier * ratio_pollution)
+        if n_polluted > 0:
+            polluted_indices = np.random.choice(n_unlabeled_outlier, n_polluted, replace=False)
+            # Find the corresponding indices in the overall dataset
+            polluted_global_indices = idx_unlabeled_outlier[polluted_indices]
+            semi_labels[polluted_global_indices] = 1  # Assign as known outliers
+
+    # Collect indices and labels
+    list_idx = np.concatenate([idx_known_normal, idx_unlabeled_normal, idx_unlabeled_outlier, idx_known_outlier])
+    list_labels = labels[list_idx].tolist()
+    list_semi_labels = semi_labels[list_idx].tolist()
+    sensitive_attr_list = sensitive_attr[list_idx].tolist()
+
+    return list_idx.tolist(), list_labels, list_semi_labels, sensitive_attr_list

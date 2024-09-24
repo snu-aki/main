@@ -53,6 +53,8 @@ class DeepSAD(object):
             'test_auc': None,
             'test_time': None
         }
+        
+        self.results = {}  # 훈련 결과 저장용
 
     def set_network(self, net_name):
         """Builds the neural network phi."""
@@ -65,11 +67,10 @@ class DeepSAD(object):
         """Trains the Deep SAD model on the training data."""
 
         self.optimizer_name = optimizer_name
-        self.trainer = DeepSADTrainer(self.c, self.eta, optimizer_name=optimizer_name, lr=lr, n_epochs=n_epochs,
+        self.trainer = DeepSADTrainer(self.c, self.eta, alpha=1.0, fairness_type=self.fairness_type, 
+                                      optimizer_name=optimizer_name, lr=lr, n_epochs=n_epochs,
                                       lr_milestones=lr_milestones, batch_size=batch_size, weight_decay=weight_decay,
-                                      device=device, n_jobs_dataloader=n_jobs_dataloader,
-                                      alpha=1.0,  # 공정성 손실의 가중치
-                                      fairness_type=self.fairness_type)  # 공정성 손실 유형 전달
+                                      device=device, n_jobs_dataloader=n_jobs_dataloader)
         # Get the model
         self.net = self.trainer.train(dataset, self.net)
         self.results['train_time'] = self.trainer.train_time
@@ -89,6 +90,7 @@ class DeepSAD(object):
 
         # Get results
         self.results['test_auc'] = self.trainer.test_auc
+        self.results['test_fair_loss'] = self.trainer.test_fair_loss
         self.results['test_time'] = self.trainer.test_time
         self.results['test_scores'] = self.trainer.test_scores
 
@@ -158,10 +160,22 @@ class DeepSAD(object):
             self.ae_net.load_state_dict(model_dict['ae_net_dict'])
 
     def save_results(self, export_json):
-        """Save results dict to a JSON-file."""
-        with open(export_json, 'w') as fp:
-            json.dump(self.results, fp)
+        # self.results가 JSON 직렬화 가능한지 확인
+        serializable_results = {}
+        for key, value in self.results.items():
+            if isinstance(value, (dict, list, str, int, float, bool, type(None))):
+                serializable_results[key] = value
+            elif isinstance(value, np.ndarray):
+                serializable_results[key] = value.tolist()
+            else:
+                try:
+                    serializable_results[key] = value.to_dict()
+                except AttributeError:
+                    serializable_results[key] = str(value)  # 직렬화 불가 객체는 문자열로 변환
 
+        with open(export_json, 'w') as f:
+            json.dump(serializable_results, f, indent=4)
+            
     def save_ae_results(self, export_json):
         """Save autoencoder results dict to a JSON-file."""
         with open(export_json, 'w') as fp:
