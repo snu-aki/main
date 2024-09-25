@@ -207,12 +207,12 @@ def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config,
         
     # Hyperparameter tuning 설정
     hyperparameter_grid = {
-        'eta': [0.5, 1.0, 1.5],                # Deep SAD hyperparameter eta
+        'eta': [0.5],                # Deep SAD hyperparameter eta
         'alpha' : [round(x * 0.1, 1) for x in range(1, 11)],         # Fairness loss 가중치
-        'lr': [0.001, 0.0005, 0.0001],               # 학습률
-        'batch_size': [64, 128, 256],          # 배치 크기
-        'lr_milestone': [[15, 35, 45]],        # lr_마일스톤 (특정 epoch마다 lr 감소시키는 지점 설정)
-        'weight_decay': [1e-4, 1e-5, 1e-6]      # 가중치 감쇠
+        'lr': [0.001],               # 학습률
+        'batch_size': [64],          # 배치 크기
+        'lr_milestone': [[15]],        # lr_마일스톤 (특정 epoch마다 lr 감소시키는 지점 설정)
+        'weight_decay': [1e-4]      # 가중치 감쇠
         # 필요시 다른 hyperparameter 추가
     }
     
@@ -311,6 +311,7 @@ def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config,
                 # Log training details
                 logger.info('Training optimizer: %s' % experiment_cfg.settings['optimizer_name'])
                 logger.info('Training learning rate: %g' % experiment_cfg.settings['lr'])
+                logger.info('Training alpha: %s' % experiment_cfg.settings['alpha'])
                 logger.info('Training epochs: %d' % experiment_cfg.settings['n_epochs'])
                 logger.info('Training learning rate scheduler milestones: %s' % (experiment_cfg.settings['lr_milestone'],))
                 logger.info('Training batch size: %d' % experiment_cfg.settings['batch_size'])
@@ -320,6 +321,7 @@ def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config,
                 logger.info('Starting training...')
                 deepSAD.train(
                     dataset,
+                    alpha=experiment_cfg.settings['alpha'],
                     optimizer_name=experiment_cfg.settings['optimizer_name'],
                     lr=experiment_cfg.settings['lr'],
                     n_epochs=experiment_cfg.settings['n_epochs'],

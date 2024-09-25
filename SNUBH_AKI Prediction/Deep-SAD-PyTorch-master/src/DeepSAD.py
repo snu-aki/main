@@ -63,11 +63,11 @@ class DeepSAD(object):
 
     def train(self, dataset: BaseADDataset, optimizer_name: str = 'adam', lr: float = 0.001, n_epochs: int = 50,
               lr_milestones: tuple = (), batch_size: int = 128, weight_decay: float = 1e-6, device: str = 'cuda',
-              n_jobs_dataloader: int = 0):
+              n_jobs_dataloader: int = 0, alpha = 1):
         """Trains the Deep SAD model on the training data."""
 
         self.optimizer_name = optimizer_name
-        self.trainer = DeepSADTrainer(self.c, self.eta, alpha=1.0, fairness_type=self.fairness_type, 
+        self.trainer = DeepSADTrainer(self.c, self.eta, alpha = alpha, fairness_type=self.fairness_type, 
                                       optimizer_name=optimizer_name, lr=lr, n_epochs=n_epochs,
                                       lr_milestones=lr_milestones, batch_size=batch_size, weight_decay=weight_decay,
                                       device=device, n_jobs_dataloader=n_jobs_dataloader)
@@ -76,12 +76,12 @@ class DeepSAD(object):
         self.results['train_time'] = self.trainer.train_time
         self.c = self.trainer.c.cpu().data.numpy().tolist()  # get as list
 
-    def test(self, dataset: BaseADDataset, device: str = 'cuda', n_jobs_dataloader: int = 0):
+    def test(self, dataset: BaseADDataset, device: str = 'cuda', n_jobs_dataloader: int = 0, alpha = 1.0):
         """Tests the Deep SAD model on the test data."""
 
         if self.trainer is None:
             self.trainer = DeepSADTrainer(self.c, self.eta, 
-                                          alpha=1.0,
+                                          alpha=alpha,
                                           fairness_type=self.fairness_type,
                                           device=device, 
                                           n_jobs_dataloader=n_jobs_dataloader)
