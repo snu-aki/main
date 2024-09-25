@@ -55,7 +55,7 @@ def load_dataset(dataset_name, data_path, normal_class, known_outlier_class, n_k
     if dataset_name == 'custom':
         # Assuming CustomCSVADDataset handles CSV files for custom dataset scenarios
         dataset = CustomCSVADDataset(root=data_path,
-                                     dataset_name='prepreocessed_data_0919',  # Example CSV file name
+                                     dataset_name='total_merge_df_0925',  # data 
                                      n_known_outlier_classes=n_known_outlier_classes,
                                      ratio_known_normal=ratio_known_normal,
                                      ratio_known_outlier=ratio_known_outlier,

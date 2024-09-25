@@ -9,7 +9,12 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 class CustomCSVDataset(Dataset):
     """Dataset class for loading data from a custom CSV file."""
     def __init__(self, file_path, train=True, transform='minmax', random_state=None, include_sensitive_attr=True):
-        self.data = pd.read_csv(file_path)
+        # self.data = pd.read_csv(file_path)
+        self.data = pd.read_csv(file_path, index_col = 0)
+        self.data['id'] = self.data['subject_id'].astype('str') + '_' + self.data['hadm_id'].astype('str')
+        self.data = self.data.drop(['subject_id', 'hadm_id'], axis = 1)
+        self.data.set_index('id', inplace=True)
+
         self.transform = transform
         self.X_train_scaled = None
         self.X_test_scaled = None

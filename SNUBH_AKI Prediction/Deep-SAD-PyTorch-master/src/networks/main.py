@@ -86,7 +86,7 @@ def build_network(net_name, ae_net=None):
         net = DeepGenerativeModel([6, 2, 4, [32, 16]])
 
     if net_name == 'custom_mlp':
-        net = MLP(x_dim=205, h_dims=[128, 64], rep_dim=32, bias=False)  # 여기에 맞는 x_dim 설정
+        net = MLP(x_dim=4409, h_dims=[128, 64], rep_dim=32, bias=False)  # 여기에 맞는 x_dim 설정
 
     return net
 
@@ -142,6 +142,6 @@ def build_autoencoder(net_name):
         ae_net = MLP_Autoencoder(x_dim=6, h_dims=[32, 16], rep_dim=4, bias=False)
 
     if net_name == 'custom_mlp':
-        ae_net = MLP_Autoencoder(x_dim=205, h_dims=[128, 64], rep_dim=32, bias=False)  # 여기에 맞는 x_dim 설정
+        ae_net = MLP_Autoencoder(x_dim=4409, h_dims=[128, 64], rep_dim=32, bias=False)  # 여기에 맞는 x_dim 설정
 
     return ae_net

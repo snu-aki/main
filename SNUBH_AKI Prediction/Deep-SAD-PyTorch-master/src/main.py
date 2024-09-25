@@ -33,6 +33,8 @@ warnings.filterwarnings("ignore")
 @click.option('--load_model', type=click.Path(exists=True), default=None,
               help='Model file path (default: None).')
 @click.option('--eta', type=float, default=1.0, help='Deep SAD hyperparameter eta (must be 0 < eta).')
+@click.option('--alpha', type=float, default=None)
+
 @click.option('--ratio_known_normal', type=float, default=0.6,
               help='Ratio of known (labeled) normal training examples.')
 @click.option('--ratio_known_outlier', type=float, default=0.4,
@@ -40,12 +42,12 @@ warnings.filterwarnings("ignore")
 @click.option('--ratio_pollution', type=float, default=0.0,
               help='Pollution ratio of unlabeled training data with unknown (unlabeled) anomalies.')
 @click.option('--device', type=str, default='cuda', help='Computation device to use ("cpu", "cuda", "cuda:2", etc.).')
-@click.option('--seed', type=int, default=0, help='Set seed. If -1, use randomization.')
+@click.option('--seed', type=int, default=1, help='Set seed. If -1, use randomization.')
 @click.option('--optimizer_name', type=click.Choice(['adam']), default='adam',
               help='Name of the optimizer to use for Deep SAD network training.')
 @click.option('--lr', type=float, default=0.001,
               help='Initial learning rate for Deep SAD network training. Default=0.001')
-@click.option('--n_epochs', type=int, default=2, help='Number of epochs to train.')
+@click.option('--n_epochs', type=int, default=80, help='Number of epochs to train.')
 @click.option('--lr_milestone', type=int, default=0, multiple=True,
               help='Lr scheduler milestones at which lr is multiplied by 0.1. Can be multiple and must be increasing.')
 @click.option('--batch_size', type=int, default=128, help='Batch size for mini-batch training.')
@@ -57,7 +59,7 @@ warnings.filterwarnings("ignore")
               help='Name of the optimizer to use for autoencoder pretraining.')
 @click.option('--ae_lr', type=float, default=0.001,
               help='Initial learning rate for autoencoder pretraining. Default=0.001')
-@click.option('--ae_n_epochs', type=int, default=2, help='Number of epochs to train autoencoder.')
+@click.option('--ae_n_epochs', type=int, default=80, help='Number of epochs to train autoencoder.')
 @click.option('--ae_lr_milestone', type=int, default=0, multiple=True,
               help='Lr scheduler milestones at which lr is multiplied by 0.1. Can be multiple and must be increasing.')
 @click.option('--ae_batch_size', type=int, default=128, help='Batch size for mini-batch autoencoder training.')
@@ -76,13 +78,13 @@ warnings.filterwarnings("ignore")
                    'If 0, no anomalies are known.'
                    'If 1, outlier class as specified in --known_outlier_class option.'
                    'If > 1, the specified number of outlier classes will be sampled at random.')
-@click.option('--random_state', default=42, type=int, help='Random seed for reproducibility.')
+@click.option('--random_state', default=1, type=int, help='Random seed for reproducibility.')
 def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config, load_model, eta,
          ratio_known_normal, ratio_known_outlier, ratio_pollution, device, seed,
          optimizer_name, lr, n_epochs, lr_milestone, batch_size, weight_decay,
          pretrain, ae_optimizer_name, ae_lr, ae_n_epochs, ae_lr_milestone, ae_batch_size, ae_weight_decay,
          num_threads, n_jobs_dataloader, normal_class, known_outlier_class, n_known_outlier_classes,
-         random_state):
+         random_state, alpha):
     """
     Deep SAD, a method for deep semi-supervised anomaly detection.
 
@@ -161,7 +163,8 @@ def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config,
             'n_jobs_dataloader': n_jobs_dataloader,
             'normal_class': normal_class,
             'known_outlier_class': known_outlier_class,
-            'n_known_outlier_classes': n_known_outlier_classes
+            'n_known_outlier_classes': n_known_outlier_classes,
+            'alpha' : alpha
             # 'cfg' 키 제거
         }
         current_cfg = Config(cfg_settings)
@@ -206,15 +209,25 @@ def main(dataset_name, net_name, fairness_type, xp_path, data_path, load_config,
         logger.info('Loading model from %s.' % load_model)
         
     # Hyperparameter tuning 설정
-    hyperparameter_grid = {
-        'eta': [0.5],                # Deep SAD hyperparameter eta
-        'alpha' : [round(x * 0.1, 1) for x in range(1, 11)],         # Fairness loss 가중치
-        'lr': [0.001],               # 학습률
-        'batch_size': [64],          # 배치 크기
-        'lr_milestone': [[15]],        # lr_마일스톤 (특정 epoch마다 lr 감소시키는 지점 설정)
-        'weight_decay': [1e-4]      # 가중치 감쇠
-        # 필요시 다른 hyperparameter 추가
-    }
+    if not alpha:
+        hyperparameter_grid = {
+            'eta': [0.5, 1.0, 1.5],                                      # Deep SAD hyperparameter eta
+            'alpha' : [round(x * 0.1, 1) for x in range(1, 11)],         # Fairness loss 가중치
+            'lr': [0.001, 0.0005, 0.0001],                               # 학습률
+            'batch_size': [64, 128, 256],                                # 배치 크기
+            'lr_milestone': [[15, 35, 45]],                              # lr_마일스톤 (특정 epoch마다 lr 감소시키는 지점 설정)
+            'weight_decay': [1e-4, 1e-5, 1e-6]                           # 가중치 감쇠
+            # 필요시 다른 hyperparameter 추가
+        }
+    else:
+        hyperparameter_grid = {
+            'eta': [0.5],                                      # Deep SAD hyperparameter eta    # Fairness loss 가중치
+            'lr': [0.001],                               # 학습률
+            'batch_size': [64],                                # 배치 크기
+            'lr_milestone': [[15, 35, 45]],                              # lr_마일스톤 (특정 epoch마다 lr 감소시키는 지점 설정)
+            'weight_decay': [1e-4]                           # 가중치 감쇠
+            # 필요시 다른 hyperparameter 추가
+        }
     
     # Define a reasonable number of seeds to evaluate for each hyperparameter combination
     seed_list = list(range(1, 2)) 
